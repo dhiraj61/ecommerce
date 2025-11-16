@@ -30,6 +30,7 @@ const sellerSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      unique: true,
       match: [/^[6-9]\d{9}$/, "Invalid phone number"],
     },
     storeDescription: {
@@ -52,6 +53,11 @@ const sellerSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+    },
+    role: {
+      type: String,
+      enum: ["customer", "seller", "admin"],
+      default: "seller",
     },
   },
   { timestamps: true }

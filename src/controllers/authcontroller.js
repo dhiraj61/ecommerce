@@ -4,6 +4,7 @@ const { userValidator } = require("../validators/user.validator");
 const userModel = require("../models/user.register");
 const sellerModel = require("../models/seller.register");
 const { sellerValidator } = require("../validators/seller.validator");
+const { loginValidator } = require("../validators/auth.validator");
 
 const token = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET_KEY, { expiresIn: "7d" });
@@ -11,7 +12,7 @@ const token = (id) => {
 
 const userRegisterController = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password,role } = req.body;
     const validatedUser = userValidator.parse({ name, email, password });
     const existingUser = await userModel.findOne({
       email: validatedUser.email,
@@ -29,17 +30,17 @@ const userRegisterController = async (req, res) => {
       name: validatedUser.name,
       email: validatedUser.email,
       password: hashedPassword,
+      role
     });
 
     if (user) {
-      const tokenid = token(user._id);
       res.status(200).json({
-        tokenid,
+        message: "Register Successfull",
       });
     }
   } catch (error) {
     return res.status(400).json({
-      message: error,
+      message: error.errors,
     });
   }
 };
@@ -56,6 +57,7 @@ const sellerRegisterController = async (req, res) => {
       storeLogo,
       sellerGst,
       password,
+      role
     } = req.body;
     const validatedSeller = sellerValidator.parse({
       name,
@@ -69,19 +71,25 @@ const sellerRegisterController = async (req, res) => {
       password,
     });
 
-    console.log(validatedSeller);
+    const filters = [
+      { email: validatedSeller.email },
+      { storeName: validatedSeller.storeName },
+      { phone: validatedSeller.phone },
+    ];
 
-    const existingSeller = await sellerModel.findOne({
-      email: validatedSeller.email,
-    });
+    if (validatedSeller.sellerGst) {
+      filters.push({ sellerGst: validatedSeller.sellerGst });
+    }
+
+    const existingSeller = await sellerModel.findOne({ $or: filters });
 
     if (existingSeller) {
       return res.status(400).json({
-        message: "seller already exist",
+        message: "Seller already exist",
       });
     }
 
-    const hashedPassword = bcrypt.hash(validatedSeller.password, 10);
+    const hashedPassword = await bcrypt.hash(validatedSeller.password, 10);
 
     const seller = await sellerModel.create({
       name: validatedSeller.name,
@@ -92,20 +100,106 @@ const sellerRegisterController = async (req, res) => {
       storeDescription: validatedSeller.storeDescription,
       storeLogo: validatedSeller.storeLogo,
       sellerGst: validatedSeller.sellerGst,
-      password: validatedSeller.password,
+      password: hashedPassword,
+      role
     });
 
     if (seller) {
-      const tokenid = token(seller._id);
       res.status(200).json({
-        tokenid,
+        message: "Seller Registered",
       });
     }
   } catch (error) {
     return res.status(400).json({
-      message: error,
+      message: error.errors,
     });
   }
 };
 
-module.exports = { userRegisterController, sellerRegisterController };
+const userLoginController = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const validatedUser = loginValidator.parse({ email, password });
+
+    const existingUser = await userModel
+      .findOne({
+        email: validatedUser.email,
+      })
+      .select("_id password");
+
+    if (!existingUser) {
+      return res.status(401).json({
+        message: "User Does Not Exist!",
+      });
+    }
+
+    const hashedPassword = await bcrypt.compare(
+      validatedUser.password,
+      existingUser.password
+    );
+
+    if (!hashedPassword) {
+      return res.status(401).json({
+        message: "Invalid Credentials",
+      });
+    }
+
+    const tokenId = token(existingUser._id);
+
+    res.status(200).json({
+      message: "Login Successful",
+      tokenId,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: error.errors,
+    });
+  }
+};
+
+const sellerLoginController = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const validatedSeller = loginValidator.parse({ email, password });
+
+    const existingSeller = await sellerModel
+      .findOne({
+        email: validatedSeller.email,
+      })
+      .select("_id password");
+
+    if (!existingSeller) {
+      return res.status(401).json({
+        message: "Seller Does Not Exist",
+      });
+    }
+
+    const hashedPassword = await bcrypt.compare(
+      validatedSeller.password,
+      existingSeller.password
+    );
+
+    if (!hashedPassword) {
+      return res.status(401).json({
+        message: "Invalid Credentials",
+      });
+    }
+
+    const tokenId = token(existingSeller._id);
+    res.status(200).json({
+      message: "Login Successful",
+      tokenId,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: error.errors,
+    });
+  }
+};
+
+module.exports = {
+  userRegisterController,
+  sellerRegisterController,
+  userLoginController,
+  sellerLoginController,
+};
