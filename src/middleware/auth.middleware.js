@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const userModel = require("../models/user.register");
 const sellerModel = require("../models/seller.register");
+const redis = require("../config/redis");
 
 const userAuthMiddleware = async (req, res, next) => {
   try {
@@ -12,6 +13,13 @@ const userAuthMiddleware = async (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
+
+    const isBlacklisted = await redis.get(`blacklist:${token}`);
+    if (isBlacklisted) {
+      return res
+        .status(401)
+        .json({ message: "Session expired, please login again" });
+    }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
 
@@ -47,6 +55,13 @@ const sellerAuthMiddleware = async (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
+
+    const isBlacklisted = await redis.get(`blacklist:${token}`);
+    if (isBlacklisted) {
+      return res
+        .status(401)
+        .json({ message: "Session expired, please login again" });
+    }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
 

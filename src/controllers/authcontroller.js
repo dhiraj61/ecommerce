@@ -5,14 +5,15 @@ const userModel = require("../models/user.register");
 const sellerModel = require("../models/seller.register");
 const { sellerValidator } = require("../validators/seller.validator");
 const { loginValidator } = require("../validators/auth.validator");
+const redis = require("../config/redis");
 
 const token = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET_KEY, { expiresIn: "7d" });
+  return jwt.sign({ id }, process.env.JWT_SECRET_KEY, { expiresIn: "1d" });
 };
 
 const userRegisterController = async (req, res) => {
   try {
-    const { name, email, password,role } = req.body;
+    const { name, email, password, role } = req.body;
     const validatedUser = userValidator.parse({ name, email, password });
     const existingUser = await userModel.findOne({
       email: validatedUser.email,
@@ -30,7 +31,7 @@ const userRegisterController = async (req, res) => {
       name: validatedUser.name,
       email: validatedUser.email,
       password: hashedPassword,
-      role
+      role,
     });
 
     if (user) {
@@ -57,7 +58,7 @@ const sellerRegisterController = async (req, res) => {
       storeLogo,
       sellerGst,
       password,
-      role
+      role,
     } = req.body;
     const validatedSeller = sellerValidator.parse({
       name,
@@ -101,7 +102,7 @@ const sellerRegisterController = async (req, res) => {
       storeLogo: validatedSeller.storeLogo,
       sellerGst: validatedSeller.sellerGst,
       password: hashedPassword,
-      role
+      role,
     });
 
     if (seller) {
@@ -197,9 +198,48 @@ const sellerLoginController = async (req, res) => {
   }
 };
 
+const logoutController = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        message: "Unauthorise access",
+      });
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+
+    if (!decoded) {
+      return res.status(400).json({ message: "Invalid token" });
+    }
+
+    const isBlacklisted = await redis.set(
+      `blacklist:${token}`,
+      "true",
+      "EX",
+      24 * 60 * 60
+    );
+    if (isBlacklisted) {
+      return res
+        .status(401)
+        .json({ message: "Session expired, please login again" });
+    }
+
+    return res.status(200).json({ message: "Logout successful" });
+  } catch (error) {
+    return res.stauts(500).json({
+      message: error.errors,
+    });
+  }
+};
+
 module.exports = {
   userRegisterController,
   sellerRegisterController,
   userLoginController,
   sellerLoginController,
+  logoutController,
 };
