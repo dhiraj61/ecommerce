@@ -6,7 +6,7 @@ const {
 const {
   userProductController,
   createProductController,
-  getProductController,
+  getSellerProductController,
 } = require("../controllers/productcontroller");
 const router = express.Router();
 const multer = require("multer");
@@ -20,5 +20,5 @@ router.post(
   upload.single("image"),
   createProductController
 );
-router.get("/getProduct", userAuthMiddleware, getProductController);
+router.get("/getProduct", sellerAuthMiddleware, getSellerProductController);
 module.exports = router;
